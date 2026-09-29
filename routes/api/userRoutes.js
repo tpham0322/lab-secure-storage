@@ -1,62 +1,34 @@
 const router = require('express').Router();
-const { Note } = require('../../models');
-const { authMiddleware } = require('../../utils/auth');
+const { User } = require('../../models');
+const { signToken } = require('../../utils/auth');
 
-// Apply authMiddleware to all routes in this file
-router.use(authMiddleware);
-
-// GET /api/notes - Get all notes for the logged-in user
-// THIS IS THE ROUTE THAT CURRENTLY HAS THE FLAW
-router.get('/', async (req, res) => {
-  // This currently finds all notes in the database.
-  // It should only find notes owned by the logged in user.
+// POST /api/users/register - Create a new user
+router.post('/register', async (req, res) => {
   try {
-    const notes = await Note.find({});
-    res.json(notes);
-  } catch (err) {
-    res.status(500).json(err);
-  }
-});
-
-// POST /api/notes - Create a new note
-router.post('/', async (req, res) => {
-  try {
-    const note = await Note.create({
-      ...req.body,
-      // The user ID needs to be added here
-    });
-    res.status(201).json(note);
+    const user = await User.create(req.body);
+    const token = signToken(user);
+    res.status(201).json({ token, user });
   } catch (err) {
     res.status(400).json(err);
   }
 });
 
-// PUT /api/notes/:id - Update a note
-router.put('/:id', async (req, res) => {
-  try {
-    // This needs an authorization check
-    const note = await Note.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!note) {
-      return res.status(404).json({ message: 'No note found with this id!' });
-    }
-    res.json(note);
-  } catch (err) {
-    res.status(500).json(err);
-  }
-});
+// POST /api/users/login - Authenticate a user and return a token
+router.post('/login', async (req, res) => {
+  const user = await User.findOne({ email: req.body.email });
 
-// DELETE /api/notes/:id - Delete a note
-router.delete('/:id', async (req, res) => {
-  try {
-    // This needs an authorization check
-    const note = await Note.findByIdAndDelete(req.params.id);
-    if (!note) {
-      return res.status(404).json({ message: 'No note found with this id!' });
-    }
-    res.json({ message: 'Note deleted!' });
-  } catch (err) {
-    res.status(500).json(err);
+  if (!user) {
+    return res.status(400).json({ message: "Can't find this user" });
   }
+
+  const correctPw = await user.isCorrectPassword(req.body.password);
+
+  if (!correctPw) {
+    return res.status(400).json({ message: 'Wrong password!' });
+  }
+
+  const token = signToken(user);
+  res.json({ token, user });
 });
 
 module.exports = router;

@@ -1,34 +1,71 @@
 const router = require('express').Router();
-const { User } = require('../../models');
-const { signToken } = require('../../utils/auth');
+const { Note } = require('../../models');
+const { authMiddleware } = require('../../utils/auth');
 
-// POST /api/users/register - Create a new user
-router.post('/register', async (req, res) => {
+// Apply authMiddleware to all routes in this file
+router.use(authMiddleware);
+
+// GET /api/notes - Get all notes for the logged-in user
+// THIS IS THE ROUTE THAT CURRENTLY HAS THE FLAW
+router.get('/', async (req, res) => {
+  // This currently finds all notes in the database.
+  // It should only find notes owned by the logged in user.
   try {
-    const user = await User.create(req.body);
-    const token = signToken(user);
-    res.status(201).json({ token, user });
+    const notes = await Note.find({
+      user: req.user._id,
+    });
+
+    res.json(notes);
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+// POST /api/notes - Create a new note
+router.post('/', async (req, res) => {
+  try {
+    const note = await Note.create({
+      ...req.body,
+      user: req.user._id,
+    });
+    res.status(201).json(note);
   } catch (err) {
     res.status(400).json(err);
   }
 });
 
-// POST /api/users/login - Authenticate a user and return a token
-router.post('/login', async (req, res) => {
-  const user = await User.findOne({ email: req.body.email });
+// PUT /api/notes/:id - Update a note
+router.put('/:id', async (req, res) => {
+  try {
 
-  if (!user) {
-    return res.status(400).json({ message: "Can't find this user" });
+    const note = await Note.findById(req.params.id);
+
+    if (!note) {
+      return res.status(404).json({ message: 'No note found with this id!' });
+    }
+
+    // Check if the logged-in user owns the note
+    if (note.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'User is not authorized to update this note.' });
+    }
+    res.json(note);
+  } catch (err) {
+    res.status(500).json(err);
   }
+});
 
-  const correctPw = await user.isCorrectPassword(req.body.password);
-
-  if (!correctPw) {
-    return res.status(400).json({ message: 'Wrong password!' });
+// DELETE /api/notes/:id - Delete a note
+router.delete('/:id', async (req, res) => {
+  try {
+    // This needs an authorization check
+    const note = await Note.findByIdAndDelete(req.params.id);
+    if (!note) {
+      return res.status(404).json({ message: 'No note found with this id!' });
+    }
+    res.json({ message: 'Note deleted!' });
+  } catch (err) {
+    res.status(500).json(err);
   }
-
-  const token = signToken(user);
-  res.json({ token, user });
 });
 
 module.exports = router;
