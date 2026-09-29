@@ -16,9 +16,9 @@ const noteSchema = new Schema({
     default: Date.now,
   },
   user: {
-  type: Schema.Types.ObjectId,
-  ref: 'User',
-  required: true,
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
 },
 });
 

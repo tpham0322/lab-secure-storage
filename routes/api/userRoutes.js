@@ -6,10 +6,15 @@ const { signToken } = require('../../utils/auth');
 router.post('/register', async (req, res) => {
   try {
     const user = await User.create(req.body);
+
     const token = signToken(user);
+
     res.status(201).json({ token, user });
   } catch (err) {
-    res.status(400).json(err);
+    console.error(err);
+    res.status(400).json({
+      message: err.message,
+    });
   }
 });
 
